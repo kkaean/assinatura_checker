@@ -21,7 +21,7 @@ class AssinaturaController:
                     try:
                         doc = fitz.open(caminho_pdf)
                         num_paginas = doc.page_count
-                        assinado = self.verificador.verificar_assinatura_visual(caminho_pdf)
+                        assinado = self.verificador.verificar_assinatura(caminho_pdf)
                         if assinado:
                             total_assinados += 1
                         pdfs_na_pasta.append({
@@ -30,7 +30,7 @@ class AssinaturaController:
                             "assinado": assinado
                         })
                     except Exception as e:
-                        print(f"Erro ao abrir {arquivo}: {e}")
+                        print(f"⚠️ Erro ao abrir {arquivo}: {e}")
             if pdfs_na_pasta:
                 total_pastas += 1
                 resultado_final.append({

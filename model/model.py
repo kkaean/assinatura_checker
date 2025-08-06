@@ -1,44 +1,53 @@
 import os
 import fitz  # PyMuPDF
+import pikepdf
 
 class AssinaturaModel:
-    def __init__(self):
-        pass
+    def verificar_assinatura(self, caminho_pdf):
+        if not os.path.exists(caminho_pdf):
+            print(f"❌ Arquivo não encontrado: {caminho_pdf}")
+            return False
 
-    def verificar_assinatura_visual(self, caminho_pdf):
-        """
-        Verifica se o PDF contém indícios visuais de assinatura digital do governo.
-        Procura por frases comuns como 'Documento assinado digitalmente' ou 'Verifique em validar.iti.gov.br'.
-        """
-        try:
-            if not os.path.exists(caminho_pdf):
-                print(f"Arquivo não encontrado: {caminho_pdf}")
-                return False
-
-            doc = fitz.open(caminho_pdf)
-            for pagina in doc:
-                texto = pagina.get_text()
-                if texto:
-                    texto = texto.lower()
-                    padroes = [
-                        "documento assinado digitalmente",
-                        "verifique em validar.iti.gov.br",
-                        "assinatura gov.br",
-                        "assinatura eletrônica",
-                        "assinado digitalmente por"
-                    ]
-                    for padrao in padroes:
-                        if padrao in texto:
-                            return True
-        except Exception as e:
-            print(f"Erro ao verificar assinatura: {e}")
+        if self._verificar_visivel(caminho_pdf):
+            return True
+        if self._verificar_embutido(caminho_pdf):
+            return True
         return False
 
-    def verificar_assinatura_em_lote(self, lista_caminhos):
-        """
-        Verifica múltiplos arquivos PDF e retorna um dicionário com os resultados.
-        """
-        resultados = {}
-        for caminho in lista_caminhos:
-            resultados[caminho] = self.verificar_assinatura_visual(caminho)
-        return resultados
+    def _verificar_visivel(self, caminho_pdf):
+        try:
+            doc = fitz.open(caminho_pdf)
+            frases = [
+                "documento assinado digitalmente",
+                "assinatura digital",
+                "certificado digital",
+                "assinatura eletrônica",
+                "assinatura com certificado"
+            ]
+            for pagina in doc:
+                texto = pagina.get_text().lower()
+                if any(frase in texto for frase in frases):
+                    return True
+            for campo in doc.widgets():
+                if campo.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE:
+                    return True
+        except Exception as e:
+            print(f"⚠️ Erro ao verificar texto visível: {e}")
+        return False
+
+    def _verificar_embutido(self, caminho_pdf):
+        try:
+            with pikepdf.open(caminho_pdf) as pdf:
+                if "/AcroForm" in pdf.root:
+                    acroform = pdf.root["/AcroForm"]
+                    if "/Fields" in acroform:
+                        for campo in acroform["/Fields"]:
+                            obj = campo.get_object()
+                            if obj.get("/FT") == "/Sig":
+                                return True
+                for nome, valor in pdf.docinfo.items():
+                    if "sig" in nome.lower() or "assinatura" in nome.lower():
+                        return True
+        except Exception as e:
+            print(f"⚠️ Erro ao verificar assinatura embutida: {e}")
+        return False
