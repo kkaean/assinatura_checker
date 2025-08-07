@@ -1,47 +1,28 @@
-import os
-import fitz
-from model.model import AssinaturaModel
+# controller/controller.py (código atualizado)
 
-class AssinaturaController:
-    def __init__(self):
-        self.verificador = AssinaturaModel()
+from model.model import ContadorDeArquivosModel
 
-    def processar_diretorio_completo(self, caminho_raiz):
-        resultado_final = []
-        total_pdfs = 0
-        total_assinados = 0
-        total_pastas = 0
+class ContadorDeArquivosController:
+    def __init__(self, model):
+        self.model = model
+        self.view = None  # A View será definida depois
 
-        for pasta_atual, _, arquivos in os.walk(caminho_raiz):
-            pdfs_na_pasta = []
-            for arquivo in arquivos:
-                if arquivo.lower().endswith(".pdf"):
-                    total_pdfs += 1
-                    caminho_pdf = os.path.join(pasta_atual, arquivo)
-                    try:
-                        doc = fitz.open(caminho_pdf)
-                        num_paginas = doc.page_count
-                        assinado = self.verificador.verificar_assinatura(caminho_pdf)
-                        if assinado:
-                            total_assinados += 1
-                        pdfs_na_pasta.append({
-                            "nome": arquivo,
-                            "paginas": num_paginas,
-                            "assinado": assinado
-                        })
-                    except Exception as e:
-                        print(f"⚠️ Erro ao abrir {arquivo}: {e}")
-            if pdfs_na_pasta:
-                total_pastas += 1
-                resultado_final.append({
-                    "pasta": os.path.basename(pasta_atual),
-                    "arquivos": pdfs_na_pasta
-                })
+    def set_view(self, view):
+        self.view = view
 
-        resumo = {
-            "total_pastas": total_pastas,
-            "total_pdfs": total_pdfs,
-            "total_assinados": total_assinados
-        }
+    def iniciar_analise(self, caminho_base):
+        """
+        Orquestra o processo de análise e exibição.
+        """
+        if not self.view:
+            print("Erro: View não definida.")
+            return
 
-        return resultado_final, resumo
+        self.view.exibir_mensagem(f"Buscando a partir de: {caminho_base}\n")
+        
+        dados_analise = self.model.analisar_diretorio(caminho_base)
+        
+        for pasta, dados_pasta in dados_analise['detalhes_por_pasta'].items():
+            self.view.exibir_detalhes_pasta(pasta, dados_pasta)
+            
+        self.view.exibir_resumo(dados_analise)

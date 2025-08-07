@@ -1,53 +1,56 @@
+# model/model.py
+
 import os
 import fitz  # PyMuPDF
-import pikepdf
 
-class AssinaturaModel:
-    def verificar_assinatura(self, caminho_pdf):
-        if not os.path.exists(caminho_pdf):
-            print(f"❌ Arquivo não encontrado: {caminho_pdf}")
-            return False
+class ContadorDeArquivosModel:
+    def analisar_diretorio(self, caminho_base):
+        """
+        Percorre o diretório e seus subdiretórios para contar pastas,
+        arquivos e páginas de PDFs.
+        Retorna um dicionário com todos os dados coletados.
+        """
+        total_pastas = 0
+        total_arquivos_pdf = 0
+        total_paginas = 0
+        detalhes_por_pasta = {}
 
-        if self._verificar_visivel(caminho_pdf):
-            return True
-        if self._verificar_embutido(caminho_pdf):
-            return True
-        return False
-
-    def _verificar_visivel(self, caminho_pdf):
-        try:
-            doc = fitz.open(caminho_pdf)
-            frases = [
-                "documento assinado digitalmente",
-                "assinatura digital",
-                "certificado digital",
-                "assinatura eletrônica",
-                "assinatura com certificado"
-            ]
-            for pagina in doc:
-                texto = pagina.get_text().lower()
-                if any(frase in texto for frase in frases):
-                    return True
-            for campo in doc.widgets():
-                if campo.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE:
-                    return True
-        except Exception as e:
-            print(f"⚠️ Erro ao verificar texto visível: {e}")
-        return False
-
-    def _verificar_embutido(self, caminho_pdf):
-        try:
-            with pikepdf.open(caminho_pdf) as pdf:
-                if "/AcroForm" in pdf.root:
-                    acroform = pdf.root["/AcroForm"]
-                    if "/Fields" in acroform:
-                        for campo in acroform["/Fields"]:
-                            obj = campo.get_object()
-                            if obj.get("/FT") == "/Sig":
-                                return True
-                for nome, valor in pdf.docinfo.items():
-                    if "sig" in nome.lower() or "assinatura" in nome.lower():
-                        return True
-        except Exception as e:
-            print(f"⚠️ Erro ao verificar assinatura embutida: {e}")
-        return False
+        for root, dirs, files in os.walk(caminho_base):
+            total_pastas += 1
+            
+            arquivos_pdf_na_pasta = [f for f in files if f.lower().endswith('.pdf')]
+            
+            if arquivos_pdf_na_pasta:
+                detalhes_por_pasta[root] = {
+                    'num_arquivos': len(arquivos_pdf_na_pasta),
+                    'arquivos': []
+                }
+                
+                total_arquivos_pdf += len(arquivos_pdf_na_pasta)
+                
+                for arquivo in arquivos_pdf_na_pasta:
+                    caminho_completo = os.path.join(root, arquivo)
+                    
+                    try:
+                        doc = fitz.open(caminho_completo)
+                        num_paginas = doc.page_count
+                        doc.close()
+                        
+                        detalhes_por_pasta[root]['arquivos'].append({
+                            'nome': arquivo,
+                            'paginas': num_paginas
+                        })
+                        total_paginas += num_paginas
+                        
+                    except Exception as e:
+                        detalhes_por_pasta[root]['arquivos'].append({
+                            'nome': arquivo,
+                            'erro': str(e)
+                        })
+        
+        return {
+            'total_pastas': total_pastas,
+            'total_arquivos_pdf': total_arquivos_pdf,
+            'total_paginas': total_paginas,
+            'detalhes_por_pasta': detalhes_por_pasta
+        }
